@@ -199,19 +199,19 @@ def coordinateDriver():
     object_radius = raw_input("Enter Move: ").strip()
 
     parts = [part for part in destination.split(",")]
-    x = float(parts[0].strip()) 
-    y = float(parts[1].strip())
-    newMove = move(x,y)
-    moves.append(newMove)
+    dest_x = float(parts[0].strip()) 
+    dest_y = float(parts[1].strip())
+    destMove = move(dest_x,dest_y)
 
     parts = [part for part in object_location.split(",")]
-    x = float(parts[0].strip()) 
-    y = float(parts[1].strip())
-    newMove = move(x,y)
-    moves.append(newMove)
+    obj_x = float(parts[0].strip()) 
+    obj_y = float(parts[1].strip())
+    objectMove = move(obj_x, obj_y)
 
-    print("Enter moves in format: 'X, Y'. Ex. '2.3, 4.1' or 'q' to quit")
-    
+    reroute_point = avoidObject(destMove, objectMove, object_radius)
+    if reroute_point is not None:
+        moves.append(reroute_point)
+    moves.append(destMove)
 
     #Do the moves
     if moves: 
