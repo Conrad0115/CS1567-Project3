@@ -59,6 +59,29 @@ def executeMoves(moves):
 def normalizeAngle(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
+def getCoordinate(x,y, theta1, theta2): 
+    m1 = math.tan(theta1)
+    m2 = math.tan(theta2)
+
+    x_target = -(x*m2 + y)/(m2-m1)
+    y_target = x_target*m1
+
+
+    print("X target: ", x_target)
+    print("Y target: ", y_target)
+
+    return [x_target, y_target]
+
+
+def getTarget(ball_x, ball_y, goal_x, goal_y, dist):
+    dx =  ball_x-goal_x 
+    dy =  ball_y-goal_y
+    length = math.sqrt((dx)**2+(dy)**2)
+
+    target_y = ball_y + (dist*dy)/length
+    target_x = ball_x + (dist*dx)/length
+    return[target_x, target_y]
+
 
 def rotate_to_angle(target_angle):
     global curYaw
@@ -146,6 +169,16 @@ def avoidObject(destination, object_location, object_radius):
     if abs(object_from_route) >= needed_distance:
         return None
     correction_distance = needed_distance - object_from_route
+
+    theta2 = math.pi - (math.pi/2) - theta
+
+    intersection = getCoordinate(object_location.X, object_location.Y, theta, theta2)
+
+    correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y, correction_distance)
+
+    return move(correction_point[0], correction_point[1])
+
+
     
 
 def coordinateDriver():
