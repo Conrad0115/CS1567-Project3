@@ -140,7 +140,7 @@ def move_to_point(target_x, target_y):
 
 
 def coordinateDriver():
-    global velocityPub, resetOdomPub
+    global velocityPub, resetOdomPub, curX, curY, curYaw
 
 
     rospy.init_node("controller", anonymous=True)
@@ -149,8 +149,6 @@ def coordinateDriver():
     rospy.Subscriber('/odom', Odometry, odomCallback)
 
 
-    resetOdom()
-    print "starting position is: ", curX, ",", curY
 
     #collecting the coordinates
     moves = []
@@ -167,6 +165,9 @@ def coordinateDriver():
 
     #Do the moves
     if moves: 
+        resetOdom()
+        print "starting position is: ", curX, ",", curY
+        print "starting yaw: ", curYaw
         rospy.sleep(2)#time to set up the robot
         executeMoves(moves)   
     else:
