@@ -15,7 +15,7 @@ curYaw = 0.0
 
 #
 velocityPub = None
-resetOdomPub = None
+
 
 
 class move:
@@ -24,8 +24,13 @@ class move:
         self.Y = Y
 
 def resetOdom():
+    global resetOdomPub
+    resetOdomPub = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty,queue_size=10)
+    
+    while resetOdomPub.get_num_connections() == 0:
+        pass
     resetOdomPub.publish(Empty())
-    rospy.sleep(0.5)  
+    rospy.sleep(0.5)
     
 
 
@@ -62,22 +67,25 @@ def normalizeAngle(angle):
 def rotate_to_angle(target_angle):
     global curYaw
     command = Twist()
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(40)
 
     curSpeed = 0
 
     while not rospy.is_shutdown():
         angleRemaining = normalizeAngle(target_angle - curYaw)
+        print "angle remaining: ", (angleRemaining *(180/math.pi))
         direction = 1 if angleRemaining > 0 else -1
         if abs(angleRemaining) < 0.02:
             break
+        
+        if abs(angleRemaining) < 0.7:
+            curSpeed = max(abs(angleRemaining), 0.2)*direction
 
-        if abs(curSpeed) <= 0.7:
+        elif abs(curSpeed) <= 0.7:
             curSpeed += .04*direction
             curSpeed = min(0.7, abs(curSpeed)) * direction
         
-        if abs(angleRemaining) < 0.35:
-            curSpeed = angleRemaining*direction
+            
 
         command.angular.z = curSpeed
         command.linear.x = 0.0
@@ -88,13 +96,15 @@ def rotate_to_angle(target_angle):
     command.linear.x = 0.0
     command.angular.z = 0.0
     velocityPub.publish(command)
+    rospy.sleep(0.5)
 
 
 
 def move_to_point(target_x, target_y):
     global curX, curY, curYaw
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(30)
     command = Twist()
+    speed = 0
 
     while not rospy.is_shutdown():
         print "x: ", curX, ", y: ", curY
@@ -108,7 +118,15 @@ def move_to_point(target_x, target_y):
         target_angle = math.atan2(dy, dx)
         angle_error = normalizeAngle(target_angle - curYaw)
 
-        command.linear.x = min(0.3, 0.2 * distance)
+        if(distance > 0.5):
+            speed = min(speed + 0.02, 0.5)
+            command.linear.x = speed
+        
+        else:
+            speed = min(speed, distance)
+            speed = max(speed, 0.1)
+            command.linear.x = speed
+
         command.angular.z = 1.2 * angle_error
         velocityPub.publish(command)
         rate.sleep()
@@ -127,7 +145,7 @@ def coordinateDriver():
 
     rospy.init_node("controller", anonymous=True)
     velocityPub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
-    resetOdomPub = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty, queue_size=10)
+   
     rospy.Subscriber('/odom', Odometry, odomCallback)
 
 
