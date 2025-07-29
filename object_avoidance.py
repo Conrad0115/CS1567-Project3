@@ -59,9 +59,7 @@ def executeMoves(moves):
 def normalizeAngle(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
-def getCoordinate(x,y, theta1, theta2): 
-    m1 = math.tan(theta1)
-    m2 = math.tan(theta2)
+def getCoordinate(x,y, m1, m2): 
 
     x_target = -(x*m2 + y)/(m2-m1)
     y_target = x_target*m1
@@ -171,10 +169,10 @@ def avoidObject(destination, object_location, object_radius):
     correction_distance = needed_distance - object_from_route
 
     
-    theta3 = math.arctan(destination.Y/destination.X)
-    theta4 = -(1/theta3)
+    m1 = destination.Y/destination.X
+    m2 = -(1/m1)
 
-    intersection = getCoordinate(object_location.X, object_location.Y, theta3, theta4)
+    intersection = getCoordinate(object_location.X, object_location.Y, m1, m2)
 
     correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y, correction_distance)
 
