@@ -3,6 +3,7 @@
 import rospy
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Int32
+from std_msgs.msg import Empty
 import math
 import os
 
@@ -12,6 +13,15 @@ last_toggle_state = 0
 last_position = None
 positions = []
 filename = os.path.expanduser("~/recorded_path.txt")
+resetOdomPub = None
+
+
+
+
+def resetOdom():
+    resetOdomPub.publish(Empty())
+    rospy.sleep(0.5)  
+    
 
 def recorder_callback(msg):
     global recording, last_toggle_state, last_position, positions
@@ -19,13 +29,13 @@ def recorder_callback(msg):
     toggle_recorder = msg.data
 
     if toggle_recorder == 1 and last_toggle_state == 0:
-        if not recording:
-            rospy.loginfo("Recording STARTED.")
+        if not recording: #start recording
+            print("Recording STARTED.")
             recording = True
             positions = [(0.0, 0.0)]
             last_position = (0.0, 0.0)
-        else:
-            rospy.loginfo("Recording STOPPED. Writing to file...")
+        else: # end recording
+            print("Recording STOPPED. Writing to file...")
             recording = False
             save_to_file()
             rospy.signal_shutdown("Recording completed and saved.")
@@ -63,9 +73,12 @@ def save_to_file():
         rospy.logerr("Failed to write to file: %s" % str(e))
 
 def main():
+    global resetOdomPub
     rospy.init_node('odom_recorder', anonymous=True)
-
+    resetOdomPub = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty, queue_size=10)
     rospy.Subscriber('/odom', Odometry, odom_callback)
+    resetOdom()
+
     rospy.Subscriber('/recorder_toggle', Int32, recorder_callback)
 
     rospy.loginfo("odom_recorder node started. Waiting for toggle messages...")
