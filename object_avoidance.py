@@ -164,15 +164,17 @@ def avoidObject(destination, object_location, object_radius):
     object_dist = math.sqrt(object_location.X**2+object_location.Y**2)
     theta = math.arccos((destination.X*object_location.X + destination.Y*object_location.Y) / (destination_dist * object_dist))
     object_from_route = object_dist * math.sin(theta) - object_radius
-    ROBOT_RADIUS = 0.3
+    ROBOT_RADIUS = 0.17
     needed_distance = ROBOT_RADIUS + object_radius + 0.1
     if abs(object_from_route) >= needed_distance:
         return None
     correction_distance = needed_distance - object_from_route
 
-    theta2 = math.pi - (math.pi/2) - theta
+    
+    theta3 = math.arctan(destination.Y/destination.X)
+    theta4 = -(1/theta3)
 
-    intersection = getCoordinate(object_location.X, object_location.Y, theta, theta2)
+    intersection = getCoordinate(object_location.X, object_location.Y, theta3, theta4)
 
     correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y, correction_distance)
 
