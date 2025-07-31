@@ -61,23 +61,30 @@ def normalizeAngle(angle):
 
 def getCoordinate(x,y, m1, m2): 
 
-    x_target = -(x*m2 + y)/(m2-m1)
+    x_target = (x*m2 - y)/(m2-m1)
     y_target = x_target*m1
 
-
-    print("X target: ", x_target)
-    print("Y target: ", y_target)
-
+    
     return [x_target, y_target]
 
 
-def getTarget(ball_x, ball_y, goal_x, goal_y, dist):
-    dx =  ball_x-goal_x 
-    dy =  ball_y-goal_y
+def getTarget(line_x, line_y, object_x, object_y, dist):
+    
+    dx =  line_x-object_x 
+    dy =  line_y-object_y
     length = math.sqrt((dx)**2+(dy)**2)
-
-    target_y = ball_y + (dist*dy)/length
-    target_x = ball_x + (dist*dx)/length
+    
+    if length == 0: #object lies in middle of path to destination
+        perp_dx = -line_y
+        perp_dy = line_x
+        perp_length = math.hypot(perp_dx, perp_dy)
+        target_x = line_x + (dist*perp_dx)/perp_length
+        target_y = line_y + (dist*perp_dy)/perp_length
+        
+        return[target_x,target_y]
+       
+    target_y = line_y + (dist*dy)/length
+    target_x = line_x + (dist*dx)/length
     return[target_x, target_y]
 
 
@@ -129,7 +136,7 @@ def move_to_point(target_x, target_y):
         dy = target_y - curY
         distance = math.sqrt(dx**2 + dy**2)
 
-        if distance < 0.1:
+        if distance < 0.01:
             break
 
         target_angle = math.atan2(dy, dx)
@@ -160,23 +167,38 @@ def avoidObject(destination, object_location, object_radius):
     # cos^-1(u.v/||u||*||v||)
     destination_dist = math.sqrt(destination.X**2+destination.Y**2)
     object_dist = math.sqrt(object_location.X**2+object_location.Y**2)
-    theta = math.arccos((destination.X*object_location.X + destination.Y*object_location.Y) / (destination_dist * object_dist))
-    object_from_route = object_dist * math.sin(theta) - object_radius
+    theta = math.acos((destination.X*object_location.X + destination.Y*object_location.Y) / (destination_dist * object_dist))
+    object_from_route = object_dist * math.sin(theta) 
     ROBOT_RADIUS = 0.17
     needed_distance = ROBOT_RADIUS + object_radius + 0.1
-    if abs(object_from_route) >= needed_distance:
+    if object_from_route >= needed_distance:
         return None
     correction_distance = needed_distance - object_from_route
 
+
+
     
-    m1 = destination.Y/destination.X
-    m2 = -(1/m1)
+   # Special handling for axis-aligned cases
+    if object_location.X == 0:
+        # Vertical path
+        detour_x = object_location.X + correction_distance
+        detour_y = object_location.Y
+    elif object_location.Y == 0:
+        # Horizontal path
+        detour_x = object_location.X
+        detour_y = object_location.Y + correction_distance
+    else:
+        # General case
+        m1 = object_location.Y / object_location.X
+        m2 = -1 / m1
 
-    intersection = getCoordinate(object_location.X, object_location.Y, m1, m2)
+        intersection = getCoordinate(object_location.X, object_location.Y, m1, m2)
+        correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y,correction_distance)
+        detour_x, detour_y = correction_point
 
-    correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y, correction_distance)
+    return move(detour_x, detour_y)
 
-    return move(correction_point[0], correction_point[1])
+    
 
 
     
@@ -196,7 +218,7 @@ def coordinateDriver():
     print("Enter object position in format: 'X, Y'")
     object_location = raw_input("Enter Move: ").strip()
     print("Enter object radius")
-    object_radius = raw_input("Enter Move: ").strip()
+    object_radius = float(raw_input("Enter Move: ").strip())
 
     parts = [part for part in destination.split(",")]
     dest_x = float(parts[0].strip()) 
@@ -209,6 +231,7 @@ def coordinateDriver():
     objectMove = move(obj_x, obj_y)
 
     reroute_point = avoidObject(destMove, objectMove, object_radius)
+    print "reroute point: ", reroute_point.X, reroute_point.Y
     if reroute_point is not None:
         moves.append(reroute_point)
     moves.append(destMove)
@@ -230,3 +253,4 @@ if __name__ == '__main__':
         coordinateDriver()
     except rospy.ROSInterruptException:
         pass
+  
