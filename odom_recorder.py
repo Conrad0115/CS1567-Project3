@@ -17,7 +17,7 @@ filename = os.path.expanduser("~/recorded_path.txt")
 def joystickCallback(data):
     global recording, origin_position, last_position, positions
 
-    new_recording_state = bool(data.buttons[2])
+    new_recording_state = data
 
     if new_recording_state != recording:
         recording = new_recording_state
@@ -70,9 +70,9 @@ def save_to_file():
 
 def main():
     rospy.init_node('odom_recorder', anonymous=True)
-
+    
     rospy.Subscriber('/odom', Odometry, odom_callback)
-    rospy.Subscriber('/joy', Joy, joystickCallback)
+    rospy.Subscriber('/recorder', bool, joystickCallback)
 
     rospy.loginfo("Odom recorder node started.")
     rospy.spin()

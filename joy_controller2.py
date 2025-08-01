@@ -7,6 +7,7 @@ from std_msgs.msg import Int32MultiArray
 
 robotpub = rospy.Publisher("/robot_twist", Twist, queue_size=10)
 smootherPub = rospy.Publisher("/robot_commands", Int32MultiArray, queue_size=10)#these means we are publishing DOWN to smoother
+recorderPub = rospy.Publisher("/recorder", bool, queue_size=10)
 smoother_com = [1, 1, 1, 0, 1] # by default, bumper, backward, LEDS, emergency brake, smoothing mode
 
 twist = Twist()
@@ -28,11 +29,12 @@ def joystickCallback(data):
     LED_button = data.buttons[7] #for led START BUTTON
     smoother_button = data.buttons[3] # for smoother toggle Y
     b_button = data.buttons[1] #b button emergency brake
-
+    record_button = data.buttons[2]
     
     
     #eco is default 1, 0 is off, 2 is sport
-    
+    if(record_button):
+        recordPub.publish(bool(record_button))
     if(bumper_button):
         smoother_com[0] ^= 1
     if(backward_button):
