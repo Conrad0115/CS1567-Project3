@@ -31,8 +31,6 @@ def resetOdom():
         pass
     resetOdomPub.publish(Empty())
     rospy.sleep(0.5)
-    
-
 
 
 def odomCallback(data):
@@ -47,8 +45,6 @@ def odomCallback(data):
     curX = data.pose.pose.position.x
     curY = data.pose.pose.position.y
 
-
-
 def executeMoves(moves):
     for move in moves:
         print "Moving to: (", move.X, ",", move.Y, ")"
@@ -61,7 +57,35 @@ def executeMoves(moves):
         rospy.sleep(1.0)
 
 def normalizeAngle(angle):
-     return (angle + math.pi) % (2 * math.pi) - math.pi
+    return (angle + math.pi) % (2 * math.pi) - math.pi
+
+def getCoordinate(x,y, m1, m2): 
+
+    x_target = (x*m2 - y)/(m2-m1)
+    y_target = x_target*m1
+
+    
+    return [x_target, y_target]
+
+
+def getTarget(line_x, line_y, object_x, object_y, dist):
+    
+    dx =  line_x-object_x 
+    dy =  line_y-object_y
+    length = math.sqrt((dx)**2+(dy)**2)
+    
+    if length == 0: #object lies in middle of path to destination
+        perp_dx = -line_y
+        perp_dy = line_x
+        perp_length = math.hypot(perp_dx, perp_dy)
+        target_x = line_x + (dist*perp_dx)/perp_length
+        target_y = line_y + (dist*perp_dy)/perp_length
+        
+        return[target_x,target_y]
+       
+    target_y = line_y + (dist*dy)/length
+    target_x = line_x + (dist*dx)/length
+    return[target_x, target_y]
 
 
 def rotate_to_angle(target_angle):
@@ -112,7 +136,7 @@ def move_to_point(target_x, target_y):
         dy = target_y - curY
         distance = math.sqrt(dx**2 + dy**2)
 
-        if distance < 0.1:
+        if distance < 0.01:
             break
 
         target_angle = math.atan2(dy, dx)
@@ -136,32 +160,81 @@ def move_to_point(target_x, target_y):
     command.angular.z = 0
     velocityPub.publish(command)
 
+def avoidObject(destination, object_location, object_radius):
+    # check if cylinder blocks path (intersects with cylinder radius + robot radius)
+    # if it doesnt
+        # return null
+    # cos^-1(u.v/||u||*||v||)
+    destination_dist = math.sqrt(destination.X**2+destination.Y**2)
+    object_dist = math.sqrt(object_location.X**2+object_location.Y**2)
+    theta = math.acos((destination.X*object_location.X + destination.Y*object_location.Y) / (destination_dist * object_dist))
+    object_from_route = object_dist * math.sin(theta) 
+    ROBOT_RADIUS = 0.17
+    needed_distance = ROBOT_RADIUS + object_radius + 0.1
+    if object_from_route >= needed_distance:
+        return None
+    correction_distance = needed_distance - object_from_route
 
 
+
+    
+   # Special handling for axis-aligned cases
+    if object_location.X == 0:
+        # Vertical path
+        detour_x = object_location.X + correction_distance
+        detour_y = object_location.Y
+    elif object_location.Y == 0:
+        # Horizontal path
+        detour_x = object_location.X
+        detour_y = object_location.Y + correction_distance
+    else:
+        # General case
+        m1 = object_location.Y / object_location.X
+        m2 = -1 / m1
+
+        intersection = getCoordinate(object_location.X, object_location.Y, m1, m2)
+        correction_point = getTarget(intersection[0], intersection[1], object_location.X, object_location.Y,correction_distance)
+        detour_x, detour_y = correction_point
+
+    return move(detour_x, detour_y)
+
+    
+
+
+    
 
 def coordinateDriver():
     global velocityPub, resetOdomPub, curX, curY, curYaw
-
 
     rospy.init_node("controller", anonymous=True)
     velocityPub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
    
     rospy.Subscriber('/odom', Odometry, odomCallback)
 
-
-
     #collecting the coordinates
     moves = []
-    print("Enter moves in format: 'X, Y'. Ex. '2.3, 4.1' or 'q' to quit")
-    while True:
-        curMove = raw_input("Enter Move: ").strip()
-        if curMove == "q":
-            break
-        parts = [part for part in curMove.split(",")]
-        x = float(parts[0].strip()) 
-        y = float(parts[1].strip())
-        newMove = move(x,y)
-        moves.append(newMove)
+    print("Enter move in format: 'X, Y'. Ex. '2.3, 4.1' or 'q' to quit")
+    destination = raw_input("Enter Move: ").strip()
+    print("Enter object position in format: 'X, Y'")
+    object_location = raw_input("Enter Move: ").strip()
+    print("Enter object radius")
+    object_radius = float(raw_input("Enter Move: ").strip())
+
+    parts = [part for part in destination.split(",")]
+    dest_x = float(parts[0].strip()) 
+    dest_y = float(parts[1].strip())
+    destMove = move(dest_x,dest_y)
+
+    parts = [part for part in object_location.split(",")]
+    obj_x = float(parts[0].strip()) 
+    obj_y = float(parts[1].strip())
+    objectMove = move(obj_x, obj_y)
+
+    reroute_point = avoidObject(destMove, objectMove, object_radius)
+    print "reroute point: ", reroute_point.X, reroute_point.Y
+    if reroute_point is not None:
+        moves.append(reroute_point)
+    moves.append(destMove)
 
     #Do the moves
     if moves: 
@@ -180,3 +253,4 @@ if __name__ == '__main__':
         coordinateDriver()
     except rospy.ROSInterruptException:
         pass
+  
