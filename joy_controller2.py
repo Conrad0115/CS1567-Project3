@@ -3,17 +3,20 @@
 import rospy
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Int32MultiArray
+from std_msgs.msg import Int32MultiArray, Bool
 
 robotpub = rospy.Publisher("/robot_twist", Twist, queue_size=10)
 smootherPub = rospy.Publisher("/robot_commands", Int32MultiArray, queue_size=10)#these means we are publishing DOWN to smoother
-recorderPub = rospy.Publisher("/recorder", bool, queue_size=10)
+recorderPub = rospy.Publisher("/recorder", Bool, queue_size=10)
 smoother_com = [1, 1, 1, 0, 1] # by default, bumper, backward, LEDS, emergency brake, smoothing mode
 
 twist = Twist()
 
+last_record_button_state = 0
+recording_toggle_state = False
+
 def joystickCallback(data):
-    global robotpub, smootherPub, twist, smoother_com
+    global robotpub, smootherPub, twist, smoother_com, recorderPub, last_record_button_state, recording_toggle_state
     
     
     RT = data.axes[5] # gas peddle
@@ -30,11 +33,14 @@ def joystickCallback(data):
     smoother_button = data.buttons[3] # for smoother toggle Y
     b_button = data.buttons[1] #b button emergency brake
     record_button = data.buttons[2]
-    
+    if record_button == 1 and last_record_button_state == 0:
+        recording_toggle_state = not recording_toggle_state
+        recorderPub.publish(Bool(recording_toggle_state))
+
+    last_record_button_state = record_button
     
     #eco is default 1, 0 is off, 2 is sport
-    if(record_button):
-        recordPub.publish(bool(record_button))
+   
     if(bumper_button):
         smoother_com[0] ^= 1
     if(backward_button):

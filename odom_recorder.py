@@ -3,6 +3,7 @@
 import rospy
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool
 import math
 import os
 
@@ -17,7 +18,7 @@ filename = os.path.expanduser("~/recorded_path.txt")
 def joystickCallback(data):
     global recording, origin_position, last_position, positions
 
-    new_recording_state = data
+    new_recording_state = data.data
 
     if new_recording_state != recording:
         recording = new_recording_state
@@ -72,7 +73,7 @@ def main():
     rospy.init_node('odom_recorder', anonymous=True)
     
     rospy.Subscriber('/odom', Odometry, odom_callback)
-    rospy.Subscriber('/recorder', bool, joystickCallback)
+    rospy.Subscriber('/recorder', Bool, joystickCallback)
 
     rospy.loginfo("Odom recorder node started.")
     rospy.spin()
