@@ -2,54 +2,60 @@
 
 import rospy
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Int32
+from sensor_msgs.msg import Joy
 import math
 import os
 
 # Global state variables
 recording = False
-last_toggle_state = 0
+last_button_state = 0
+origin_position = None
 last_position = None
 positions = []
 filename = os.path.expanduser("~/recorded_path.txt")
 
-def recorder_callback(msg):
-    global recording, last_toggle_state, last_position, positions
+def joystickCallback(data):
+    global recording, origin_position, last_position, positions
 
-    toggle_recorder = msg.data
+    new_recording_state = bool(data.buttons[2])
 
-    if toggle_recorder == 1 and last_toggle_state == 0:
-        if not recording:
-            rospy.loginfo("Recording STARTED.")
-            recording = True
-            positions = [(0.0, 0.0)]
-            last_position = (0.0, 0.0)
+    if new_recording_state != recording:
+        recording = new_recording_state
+        if recording:
+            rospy.loginfo("Recording started")
+            # Reset for new recording session
+            origin_position = None
+            last_position = None
+            positions = [(0.0, 0.0)]  # start with origin
         else:
-            rospy.loginfo("Recording STOPPED. Writing to file...")
-            recording = False
+            rospy.loginfo("Recording stopped")
             save_to_file()
-            rospy.signal_shutdown("Recording completed and saved.")
-    
-    last_toggle_state = toggle_recorder
+
 
 def odom_callback(msg):
-    global recording, last_position, positions
+    global recording, origin_position, last_position, positions
 
     if not recording:
         return
 
     x = msg.pose.pose.position.x
     y = msg.pose.pose.position.y
-    current = (x, y)
 
-    if last_position is None:
-        positions.append(current)
-        last_position = current
-    else:
-        dist = math.hypot(x - last_position[0], y - last_position[1])
-        if dist >= 0.1:
-            positions.append(current)
-            last_position = current
+    # Set the origin at the moment recording starts
+    if origin_position is None:
+        origin_position = (x, y)
+        last_position = (0.0, 0.0)  # local origin
+        return
+
+    # Relative to origin
+    rel_x = x - origin_position[0]
+    rel_y = y - origin_position[1]
+    current_rel = (rel_x, rel_y)
+
+    dist = math.hypot(current_rel[0] - last_position[0], current_rel[1] - last_position[1])
+    if dist >= 0.1:
+        positions.append(current_rel)
+        last_position = current_rel
 
 def save_to_file():
     global positions, filename
@@ -66,9 +72,9 @@ def main():
     rospy.init_node('odom_recorder', anonymous=True)
 
     rospy.Subscriber('/odom', Odometry, odom_callback)
-    rospy.Subscriber('/recorder_toggle', Int32, recorder_callback)
+    rospy.Subscriber('/joy', Joy, joystickCallback)
 
-    rospy.loginfo("odom_recorder node started. Waiting for toggle messages...")
+    rospy.loginfo("Odom recorder node started.")
     rospy.spin()
 
 if __name__ == '__main__':
