@@ -32,7 +32,7 @@ def joystickCallback(data):
     LED_button = data.buttons[7] #for led START BUTTON
     smoother_button = data.buttons[3] # for smoother toggle Y
     b_button = data.buttons[1] #b button emergency brake
-    record_button = data.buttons[2]
+    record_button = data.buttons[2] #x
     if record_button == 1 and last_record_button_state == 0:
         recording_toggle_state = not recording_toggle_state
         recorderPub.publish(Bool(recording_toggle_state))
