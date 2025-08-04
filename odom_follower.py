@@ -121,7 +121,7 @@ def turn(speed, degrees):
 def follow_path():
     global returning_home, positions, position
 
-    linear_speed = 0.2
+    linear_speed = 0.15
     angle_threshold = math.radians(10)
 
     Kp, Ki, Kd = 1.5, 0.0, 0.1
@@ -134,7 +134,7 @@ def follow_path():
     while not rospy.is_shutdown() and counter < len(positions):
 
         # Get the next 5 waypoints from the current position
-        avg_count = min(5, len(positions) - counter)
+        avg_count = min(3, len(positions) - counter)
         sum_x = sum_y = 0.0
         for i in range(avg_count):
             sum_x += positions[counter + i][0]
@@ -163,17 +163,16 @@ def follow_path():
         if distance > 0.1:  # Keep moving toward averaged point
             if abs(error) < angle_threshold:
                 cmd_vel.linear.x = linear_speed
-            else:
-                cmd_vel.linear.x = 0.0
+            
 
             cmd_vel.angular.z = max(-1.0, min(1.0, angular_z))
 
         else:
             counter += 1
-            cmd_vel.linear.x = 0.0
-            cmd_vel.angular.z = 0.0
-            cmd_vel_pub.publish(cmd_vel)
-            rospy.sleep(0.05)
+            #cmd_vel.linear.x = 0.0
+            #cmd_vel.angular.z = 0.0
+            #cmd_vel_pub.publish(cmd_vel)
+            #rospy.sleep(0.05)
             continue
 
         cmd_vel_pub.publish(cmd_vel)
@@ -211,9 +210,10 @@ def main():
     
     # Wait briefly for everything to initialize
     
-    resetOdomPub.publish(Empty())
-    print("reset odometry")
-    rospy.sleep(1.0)
+    for _ in range(3):
+        resetOdomPub.publish(Empty())
+        rospy.sleep(0.5)    
+        print("reset odometry")
     print("done sleeping")
     # Start following the path
     follow_path()
