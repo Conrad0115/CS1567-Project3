@@ -139,6 +139,26 @@ def follow_path():
         positions.reverse()
         returning_home = True
         follow_path()
+        
+        
+    if returning_home:
+    # Record starting position
+        start_x, start_y = position[0], position[1]
+        distance_moved = 0.0
+        
+        # Move forward until we've gone ~10cm (0.1 meters)
+        while distance_moved < 0.08 and not rospy.is_shutdown():
+            cmd_vel = Twist()
+            cmd_vel.linear.x = 0.1  # Slow speed for precise movement
+            cmd_vel_pub.publish(cmd_vel)
+            
+            # Calculate how far we've moved
+            distance_moved = math.hypot(position[0] - start_x, position[1] - start_y)
+            rospy.sleep(0.1)
+        
+        # Stop the robot
+        cmd_vel_pub.publish(Twist())
+        
 
 
 
