@@ -10,10 +10,11 @@ import os
 
 filename = os.path.expanduser("~/recorded_path.txt")
 
-# Global variables
+# Global variables (DO NOT CHANGE THESE)
 positions = []
 current_waypoint = 0
-cmd_vel_pub = None
+pub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
+command = Twist()
 position = (0.0, 0.0)  # Current position
 yaw = 0.0  # Current orientation
 waypoint_threshold = 0.1  # Distance threshold to consider waypoint reached
@@ -29,6 +30,7 @@ def odom_callback(msg):
     siny_cosp = 2 * (q.w * q.z + q.x * q.y)
     cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
     yaw = math.atan2(siny_cosp, cosy_cosp)
+    #print(f"Current position: {position}, yaw: {yaw}")  # Debug print
 
 def read_file():
     """Read the recorded path from file"""
@@ -40,9 +42,7 @@ def read_file():
                 if line:
                     x, y = map(float, line.split(','))
                     positions.append((x, y))
-        rospy.loginfo(f"Loaded {len(positions)} waypoints from {filename}")
     except Exception as e:
-        rospy.logerr(f"Failed to read path file: {str(e)}")
         positions = []
 
 def distance_to_waypoint():
@@ -54,43 +54,41 @@ def distance_to_waypoint():
 
 def turn_around():
     """Make the robot turn 180 degrees"""
-    global yaw
+    global yaw, command
     
     rate = rospy.Rate(10)
-    cmd_vel = Twist()
-    
     target_yaw = yaw + math.pi  # Add 180 degrees
     # Normalize angle to [-pi, pi]
     target_yaw = (target_yaw + math.pi) % (2 * math.pi) - math.pi
     
-    rospy.loginfo("Starting turn around maneuver")
+    print("Starting turn around maneuver")
     
     while not rospy.is_shutdown() and abs(yaw - target_yaw) > 0.1:
         # Simple P controller for rotation
         error = (target_yaw - yaw + math.pi) % (2 * math.pi) - math.pi
-        cmd_vel.angular.z = 0.5 * error
-        cmd_vel_pub.publish(cmd_vel)
+        command.angular.z = 0.5 * error
+        command.linear.x = 0.0  # Ensure no linear motion during turn
+        pub.publish(command)
         rate.sleep()
     
     # Stop rotation
-    cmd_vel.angular.z = 0.0
-    cmd_vel_pub.publish(cmd_vel)
-    rospy.loginfo("Turn around complete")
+    command.angular.z = 0.0
+    pub.publish(command)
+    print("Turn around complete")
 
 def follow_path():
     """Main control loop to follow the path"""
-    global current_waypoint, cmd_vel_pub, returning_home
+    global current_waypoint, command, returning_home, position, yaw
     
     if not positions:
-        rospy.logwarn("No waypoints loaded")
+        print("No waypoints loaded - cannot follow path")
         return
     
     rate = rospy.Rate(10)  # 10 Hz
-    cmd_vel = Twist()
+    
     
     # First follow the path to the destination
     while not rospy.is_shutdown() and current_waypoint < len(positions):
-        # Get current waypoint
         target_x, target_y = positions[current_waypoint]
         
         # Calculate distance and angle to waypoint
@@ -99,32 +97,35 @@ def follow_path():
         distance = math.hypot(dx, dy)
         angle = math.atan2(dy, dx)
         
-        # Simple proportional control
+        # Calculate angle difference (considering circular nature of angles)
+        angle_diff = (angle - yaw + math.pi) % (2 * math.pi) - math.pi
+        
+        #print(f"Waypoint {current_waypoint}: Dist={distance:.2f}, AngleDiff={angle_diff:.2f}")
+        
         if distance > waypoint_threshold:
-            # Calculate linear and angular velocities
-            linear_vel = min(0.2, distance * 0.5)  # Cap at 0.2 m/s
-            angular_vel = angle * 0.5  # Proportional control for angle
+            # Calculate velocities (simple P-controller)
+            linear_vel = min(0.2, 0.5 * distance)  # Cap at 0.2 m/s
+            angular_vel = 0.8 * angle_diff  # More aggressive turning
             
             # Publish velocity command
-            cmd_vel.linear.x = linear_vel
-            cmd_vel.angular.z = angular_vel
-            cmd_vel_pub.publish(cmd_vel)
+            command.linear.x = linear_vel
+            command.angular.z = angular_vel
+            pub.publish(command)
         else:
             # Reached the waypoint
-            rospy.loginfo(f"Reached waypoint {current_waypoint}: ({target_x:.2f}, {target_y:.2f})")
             current_waypoint += 1
             
             # Stop briefly before moving to next waypoint
-            cmd_vel.linear.x = 0.0
-            cmd_vel.angular.z = 0.0
-            cmd_vel_pub.publish(cmd_vel)
+            command.linear.x = 0.0
+            command.angular.z = 0.0
+            pub.publish(command)
             rospy.sleep(0.5)
         
         rate.sleep()
     
     # Reached destination - turn around for return trip
     if not returning_home:
-        rospy.loginfo("Reached destination - preparing return trip")
+        print("Reached destination - preparing return trip")
         turn_around()
         
         # Reverse the path for return trip
@@ -139,18 +140,15 @@ def follow_path():
         follow_path()
     else:
         # Stop when done with return trip
-        cmd_vel.linear.x = 0.0
-        cmd_vel.angular.z = 0.0
-        cmd_vel_pub.publish(cmd_vel)
-        rospy.loginfo("Completed return trip - back at starting point")
+        command.linear.x = 0.0
+        command.angular.z = 0.0
+        pub.publish(command)
+        print("Completed return trip - back at starting point")
 
 def main():
-    global cmd_vel_pub
-    
     rospy.init_node('path_follower', anonymous=True)
     
-    # Setup publishers and subscribers
-    cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+    # Setup subscriber
     rospy.Subscriber('/odom', Odometry, odom_callback)
     
     # Read the path file
@@ -160,6 +158,7 @@ def main():
     rospy.sleep(1.0)
     
     # Start following the path
+    print("Starting path following...")
     follow_path()
     
     rospy.spin()
