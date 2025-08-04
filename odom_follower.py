@@ -71,53 +71,6 @@ def turn_around():
     cmd_vel.angular.z = 0.0
     cmd_vel_pub.publish(cmd_vel)
 
-def turn(speed, degrees):
-    
-    global moveMode
-    
-    command = Twist()
-    rate = rospy.Rate(10)
-    current_speed = 0.0
-    direction = 1 if speed > 0 else -1
-
-    command.linear.x = 0.0
-    command.angular.z = 0.0
-    velocityPub.publish(command)
-
-    target_angle = degrees #target angle to turn
-    lastAngle = curDeg #last angle from odom
-    curAngle = 0.0 #tracks cumalitive angle turned
-
-    while not rospy.is_shutdown():
-        Change = handleWrap(lastAngle, curDeg)
-        curAngle += abs(Change)
-        lastAngle = curDeg
-
-        angleRemaining = target_angle - curAngle
-
-        if abs(angleRemaining) <= .5: 
-            command.linear.x = 0.0
-            command.angular.z = 0.0
-            velocityPub.publish(command)
-            rospy.sleep(0.5)
-            moveMode = 0
-            break
-        
-        if abs(current_speed) < abs(speed):
-            current_speed += 0.04 * direction
-            current_speed = min(abs(speed), abs(current_speed), 0.7) * direction
-
-        if(abs(angleRemaining) < 20):
-            current_speed = max(abs(angleRemaining/100), 0.05)* direction
-        
-        command.linear.x = 0.0
-        command.angular.z = current_speed
-      
-        velocityPub.publish(command)
-        print("Current Position: X: {}, Y: {}, Degrees: {}".format(curX, curY, curDeg))
-        print("current speed: {}, angle remaining: {}".format(current_speed, angleRemaining))
-        rate.sleep()
-
 def follow_path():
     global returning_home, positions, position
 
