@@ -52,24 +52,54 @@ def distance_to_waypoint():
 def turn_around():
     global yaw
     
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(20)  # Higher rate for smoother control
     cmd_vel = Twist()
     
-    target_yaw = yaw + math.pi  # Add 180 degrees
-    # Normalize angle to [-pi, pi]
+    # Calculate target yaw (180 degrees from current)
+    target_yaw = (yaw + math.pi) 
+    # Normalize to [-pi, pi]
     target_yaw = (target_yaw + math.pi) % (2 * math.pi) - math.pi
     
+    # Controller parameters
+    Kp = 0.3  # Reduced proportional gain
+    Ki = 0.01  # Small integral term to handle steady-state error
+    Kd = 0.1   # Derivative term to damp oscillations
+    last_error = 0
+    integral = 0
     
-    while not rospy.is_shutdown() and abs(yaw - target_yaw) > 0.1:
-        # Simple P controller for rotation
+    # Deadband - don't correct if we're close enough
+    angle_tolerance = 0.05  # ~3 degrees
+    
+    # Stop any linear motion first
+    cmd_vel.linear.x = 0
+    cmd_vel_pub.publish(cmd_vel)
+    rospy.sleep(0.1)  # Let the robot stop
+    
+    while not rospy.is_shutdown() and abs((target_yaw - yaw + math.pi) % (2 * math.pi) - math.pi) > angle_tolerance:
+        # Calculate angle error (shortest path)
         error = (target_yaw - yaw + math.pi) % (2 * math.pi) - math.pi
-        cmd_vel.angular.z = 0.5 * error
+        
+        # PID terms
+        integral += error * 0.05  # dt = 1/20
+        derivative = (error - last_error) / 0.05
+        last_error = error
+        
+        # Calculate angular velocity
+        angular_z = Kp * error + Ki * integral + Kd * derivative
+        
+        # Limit angular velocity
+        angular_z = max(-0.5, min(0.5, angular_z))
+        
+        # Publish command
+        cmd_vel.angular.z = angular_z
         cmd_vel_pub.publish(cmd_vel)
+        
         rate.sleep()
     
     # Stop rotation
-    cmd_vel.angular.z = 0.0
+    cmd_vel.angular.z = 0
     cmd_vel_pub.publish(cmd_vel)
+    rospy.sleep(0.2)  # Let the robot settle
 
 def follow_path():
     global returning_home, positions, position
@@ -147,7 +177,7 @@ def follow_path():
         distance_moved = 0.0
         
         # Move forward until we've gone ~10cm (0.1 meters)
-        while distance_moved < 0.08 and not rospy.is_shutdown():
+        while distance_moved < 0.05 and not rospy.is_shutdown():
             cmd_vel = Twist()
             cmd_vel.linear.x = 0.1  # Slow speed for precise movement
             cmd_vel_pub.publish(cmd_vel)
